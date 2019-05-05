@@ -1,3 +1,4 @@
 // the configured options and settings for Tutorial
-#define VolubleTelegramClient_VERSION_MAJOR @VolubleTelegramClient_VERSION_MAJOR@
-#define VolubleTelegramClient_VERSION_MINOR @VolubleTelegramClient_VERSION_MINOR@
+#define VERSION_MAJOR @VolubleTelegramClient_VERSION_MAJOR@
+#define VERSION_MINOR @VolubleTelegramClient_VERSION_MINOR@
+#define VERSION_PATCH @VolubleTelegramClient_VERSION_PATCH@

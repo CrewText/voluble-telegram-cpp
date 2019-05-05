@@ -2,19 +2,19 @@
 #include <string>
 #include <cstdio>
 #include <iostream>
-#include <cpprest
 #include "VolubleTelegramClientConfig.h"
+#include "server/server.h"
 
 using namespace std;
 
 int main()
 {
-    printf("Hi there!\n");
     cout
-    << "VTH Version: "
-    << VolubleTelegramClient_VERSION_MAJOR << "." << VolubleTelegramClient_VERSION_MINOR 
-    << endl;
-    cout
-        << "hey" << endl;
+        << "VTH Version: "
+        << VERSION_MAJOR << "." << VERSION_MINOR << "." << VERSION_PATCH
+        << endl;
+
+    handle_request();
+
     return 0;
 }

@@ -26,7 +26,10 @@ add_subdirectory(td-1.4.0)
 add_executable(telegram telegram.cpp
 server/server.cpp
 server/telegram_client/telegram_client.cpp
-server/telegram_client/handlers/authorization_handler.cpp)
+server/telegram_client/handlers/authorization_handler.cpp
+server/telegram_client/handlers/option_handler.cpp
+server/telegram_client/handlers/connectionstate_handler.cpp
+)
 
 target_link_libraries(telegram PRIVATE cpprestsdk::cpprest)
 target_link_libraries(telegram PRIVATE Td::TdStatic)

@@ -6,28 +6,52 @@ AuthorizationHandler::AuthorizationHandler(shared_ptr<td::Client> client)
     _client = client;
 }
 
-void AuthorizationHandler::handle_authorization_state(td::td_api::object_ptr<td::td_api::updateAuthorizationState> &updateAuthState)
+td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_authorization_state(td::td_api::object_ptr<td::td_api::updateAuthorizationState> &updateAuthState)
 {
     switch (updateAuthState->authorization_state_->get_id())
     {
     case td::td_api::authorizationStateWaitTdlibParameters::ID:
     {
-        auto authState = td::move_tl_object_as<td::td_api::authorizationStateWaitTdlibParameters>(updateAuthState->authorization_state_);
+        auto authState = td::td_api::move_object_as<td::td_api::authorizationStateWaitTdlibParameters>(updateAuthState->authorization_state_);
         cout << "Got AuthStateWaitTdLibParams" << endl;
-        handle_tdlib_parameters();
-        return;
+        return handle_tdlib_parameters();
     }
     case td::td_api::authorizationStateWaitEncryptionKey::ID:
     {
-        auto authState = td::move_tl_object_as<td::td_api::authorizationStateWaitEncryptionKey>(updateAuthState->authorization_state_);
+        auto authState = td::td_api::move_object_as<td::td_api::authorizationStateWaitEncryptionKey>(updateAuthState->authorization_state_);
         cout << "Got AuthStateWaitEncrKey " << endl;
-        handle_wait_encryption_key();
-        return;
+        return handle_wait_encryption_key();
+    }
+    case td::td_api::authorizationStateWaitPhoneNumber::ID:
+    {
+        auto authState = td::td_api::move_object_as<td::td_api::authorizationStateWaitPhoneNumber>(updateAuthState->authorization_state_);
+        cout << "Got AuthStateWaitPhoneNumber" << endl;
+        return handle_wait_phone_number();
+    }
+    case td::td_api::authorizationStateWaitCode::ID:
+    {
+        auto authState = td::td_api::move_object_as<td::td_api::authorizationStateWaitCode>(updateAuthState->authorization_state_);
+        cout << "Got AuthStateWaitCode" << endl;
+
+        cout << "Is registered? " << &authState->is_registered_ << endl;
+
+        cout << "ToS: " << endl
+             << &authState->terms_of_service_->text_->text_ << endl;
+        return handle_wait_code();
+    }
+    case td::td_api::authorizationStateReady::ID:
+    {
+        cout << "Got AuthStateReady" << endl;
+        return nullptr;
+    }
+    default:
+    {
+        assert(false);
     }
     }
 }
 
-void AuthorizationHandler::handle_tdlib_parameters()
+td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_tdlib_parameters()
 {
     ostringstream version;
     version << VERSION_MAJOR << "." << VERSION_MINOR;
@@ -43,7 +67,7 @@ void AuthorizationHandler::handle_tdlib_parameters()
     parameters->device_model_ = "Asus Zenbook";
     parameters->enable_storage_optimizer_ = false;
     parameters->files_directory_ = "";
-    parameters->system_version_ = "";
+    parameters->system_version_ = "Win 10";
     parameters->use_chat_info_database_ = true;
     parameters->use_file_database_ = true;
     parameters->use_message_database_ = true;
@@ -51,15 +75,24 @@ void AuthorizationHandler::handle_tdlib_parameters()
     parameters->use_test_dc_ = true;
     cout << "Made TdLibParams" << endl;
 
-    auto fn = td::td_api::make_object<td::td_api::setTdlibParameters>(move(parameters));
-    cout << "Made function" << endl;
-    _client->send({1, move(fn)});
-    cout << "send thing" << endl;
+    //_client->send({1, td::td_api::make_object<td::td_api::setTdlibParameters>(move(parameters))});
+    //_client->cout << "send thing" << endl;
+    return td::td_api::make_object<td::td_api::setTdlibParameters>(move(parameters));
 }
 
-void AuthorizationHandler::handle_wait_encryption_key()
+td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_wait_encryption_key()
 {
-    //shared_ptr<td::Client> client = make_shared<td::Client>();
-    auto encryKeyFn = td::make_tl_object<td::td_api::setDatabaseEncryptionKey>("");
-    _client->send({2, move(encryKeyFn)});
+    return td::td_api::make_object<td::td_api::setDatabaseEncryptionKey>("");
+}
+
+td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_wait_phone_number()
+{
+    return td::td_api::make_object<td::td_api::setAuthenticationPhoneNumber>("+447426437449", false, true);
+}
+
+td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_wait_code()
+{
+    string code;
+    getline(cin, code);
+    return td::td_api::make_object<td::td_api::checkAuthenticationCode>(code, "Cal", "McLean");
 }

@@ -4,6 +4,7 @@ using namespace std;
 void handle_request()
 {
     TelegramClient *tc = new TelegramClient();
+    cout << "Created TC" << endl;
     try
     {
         // string stringhost = "http://localhost";

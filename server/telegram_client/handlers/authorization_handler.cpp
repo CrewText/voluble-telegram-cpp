@@ -4,6 +4,16 @@ using namespace std;
 AuthorizationHandler::AuthorizationHandler(shared_ptr<td::Client> client)
 {
     _client = client;
+    _logger = spdlog::get("console");
+    if (_logger == nullptr)
+    {
+        cout << "AuthHandler: No logger found!" << endl;
+    }
+}
+
+AuthorizationHandler::~AuthorizationHandler()
+{
+    _client = nullptr;
 }
 
 td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_authorization_state(td::td_api::object_ptr<td::td_api::updateAuthorizationState> &updateAuthState)
@@ -13,27 +23,25 @@ td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_author
     case td::td_api::authorizationStateWaitTdlibParameters::ID:
     {
         auto authState = td::td_api::move_object_as<td::td_api::authorizationStateWaitTdlibParameters>(updateAuthState->authorization_state_);
-        cout << "Got AuthStateWaitTdLibParams" << endl;
+        _logger->debug("Got AuthStateWaitTdLibParams");
         return handle_tdlib_parameters();
     }
     case td::td_api::authorizationStateWaitEncryptionKey::ID:
     {
         auto authState = td::td_api::move_object_as<td::td_api::authorizationStateWaitEncryptionKey>(updateAuthState->authorization_state_);
-        cout << "Got AuthStateWaitEncrKey " << endl;
+        _logger->debug("Got AuthStateWaitEncrKey");
         return handle_wait_encryption_key();
     }
     case td::td_api::authorizationStateWaitPhoneNumber::ID:
     {
         auto authState = td::td_api::move_object_as<td::td_api::authorizationStateWaitPhoneNumber>(updateAuthState->authorization_state_);
-        cout << "Got AuthStateWaitPhoneNumber" << endl;
+        _logger->debug("Got AuthStateWaitPhoneNumber");
         return handle_wait_phone_number();
     }
     case td::td_api::authorizationStateWaitCode::ID:
     {
         auto authState = td::td_api::move_object_as<td::td_api::authorizationStateWaitCode>(updateAuthState->authorization_state_);
-        cout << "Got AuthStateWaitCode" << endl;
-
-        cout << "Is registered? " << &authState->is_registered_ << endl;
+        _logger->debug("Got AuthStateWaitCode; Is registered? {}", authState->is_registered_);
 
         cout << "ToS: " << endl
              << &authState->terms_of_service_->text_->text_ << endl;
@@ -41,7 +49,7 @@ td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_author
     }
     case td::td_api::authorizationStateReady::ID:
     {
-        cout << "Got AuthStateReady" << endl;
+        _logger->debug("Got AuthStateReady");
         return nullptr;
     }
     default:
@@ -55,9 +63,9 @@ td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_tdlib_
 {
     ostringstream version;
     version << VERSION_MAJOR << "." << VERSION_MINOR;
-    cout << "handling tdlib params" << endl;
+    // cout << "handling tdlib params" << endl;
     auto parameters = td::td_api::make_object<td::td_api::tdlibParameters>();
-    cout << "made params object" << endl;
+    // cout << "made params object" << endl;
     parameters->ignore_file_names_ = false;
     parameters->system_language_code_ = "en-gb";
     parameters->api_hash_ = getenv("TELEGRAM_API_HASH");
@@ -73,7 +81,7 @@ td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_tdlib_
     parameters->use_message_database_ = true;
     parameters->use_secret_chats_ = false;
     parameters->use_test_dc_ = true;
-    cout << "Made TdLibParams" << endl;
+    // cout << "Made TdLibParams" << endl;
 
     //_client->send({1, td::td_api::make_object<td::td_api::setTdlibParameters>(move(parameters))});
     //_client->cout << "send thing" << endl;

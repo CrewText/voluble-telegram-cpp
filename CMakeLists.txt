@@ -3,8 +3,6 @@ project (telegram)
 
 set (CMAKE_TOOLCHAIN_FILE "C:/Users/calmc/vcpkg/scripts/buildsystems/vcpkg.cmake")
 set (cpprestsdk_DIR "C:/Users/calmc/vcpkg/installed/x64-windows/share/cpprestsdk")
-find_package(cpprestsdk REQUIRED)
-
 
 set (VolubleTelegramClient_VERSION_MAJOR 0)
 set (VolubleTelegramClient_VERSION_MINOR 1)
@@ -31,5 +29,13 @@ server/telegram_client/handlers/option_handler.cpp
 server/telegram_client/handlers/connectionstate_handler.cpp
 )
 
+find_package(cpprestsdk CONFIG REQUIRED)
+target_link_libraries(telegram PRIVATE cpprestsdk::cpprest cpprestsdk::cpprestsdk_zlib_internal cpprestsdk::cpprestsdk_boost_internal cpprestsdk::cpprestsdk_openssl_internal)
+find_package(OpenSSL REQUIRED)
+target_link_libraries(telegram PRIVATE OpenSSL::SSL OpenSSL::Crypto)
+find_package(ZLIB REQUIRED)
+target_link_libraries(telegram PRIVATE ZLIB::ZLIB)
+find_package(spdlog CONFIG REQUIRED)
+target_link_libraries(telegram PRIVATE spdlog::spdlog)
 target_link_libraries(telegram PRIVATE cpprestsdk::cpprest)
 target_link_libraries(telegram PRIVATE Td::TdStatic)

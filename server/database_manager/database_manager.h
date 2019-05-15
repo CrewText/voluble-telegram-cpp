@@ -16,7 +16,7 @@ public:
 private:
     std::shared_ptr<spdlog::logger> _logger;
     std::string _db_location;
-    SQLite::Database db;
+    SQLite::Database *db;
 };
 
 #endif //DATABASE_MANAGER_H

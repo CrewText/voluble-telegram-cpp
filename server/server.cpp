@@ -3,9 +3,17 @@ using namespace std;
 
 void handle_request()
 {
-    DatabaseManager *db_manager = new DatabaseManager("C:/Users/calmc/Desktop/voluble-telegram.db");
+    std::shared_ptr<spdlog::logger> _logger = spdlog::get("console");
+    _logger->debug("Creating DB Manager");
+    DatabaseManager *db_manager = new DatabaseManager("C:\\Users\\calmc\\Desktop\\voluble-telegram.db");
+    _logger->debug("Creating Telegram Client");
     TelegramClient *tc = new TelegramClient();
-    cout << "Created TC" << endl;
+
+    if (!db_manager->verify_database())
+    {
+        db_manager->init_new_user_database();
+    };
+
     try
     {
         // string stringhost = "http://localhost";

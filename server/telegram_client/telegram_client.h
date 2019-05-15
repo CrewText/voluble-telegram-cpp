@@ -29,8 +29,8 @@ private:
 
     bool is_closed = false;
 
-    shared_ptr<td::Client> _client;
-    vector<td::td_api::object_ptr<td::td_api::OptionValue>> options;
+    std::shared_ptr<td::Client> _client;
+    std::vector<td::td_api::object_ptr<td::td_api::OptionValue>> options;
     std::map<uint64_t, std::function<void(td::td_api::object_ptr<td::td_api::Object>)>> inflight_requests;
     AuthorizationHandler *authHandler;
     OptionHandler *optionHandler;

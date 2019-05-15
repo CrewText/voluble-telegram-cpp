@@ -23,25 +23,25 @@ td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_author
     case td::td_api::authorizationStateWaitTdlibParameters::ID:
     {
         auto authState = td::td_api::move_object_as<td::td_api::authorizationStateWaitTdlibParameters>(updateAuthState->authorization_state_);
-        _logger->debug("Got AuthStateWaitTdLibParams");
+        _logger->debug("AuthHandler: Got AuthStateWaitTdLibParams");
         return handle_tdlib_parameters();
     }
     case td::td_api::authorizationStateWaitEncryptionKey::ID:
     {
         auto authState = td::td_api::move_object_as<td::td_api::authorizationStateWaitEncryptionKey>(updateAuthState->authorization_state_);
-        _logger->debug("Got AuthStateWaitEncrKey");
+        _logger->debug("AuthHandler: Got AuthStateWaitEncrKey");
         return handle_wait_encryption_key();
     }
     case td::td_api::authorizationStateWaitPhoneNumber::ID:
     {
         auto authState = td::td_api::move_object_as<td::td_api::authorizationStateWaitPhoneNumber>(updateAuthState->authorization_state_);
-        _logger->debug("Got AuthStateWaitPhoneNumber");
+        _logger->debug("AuthHandler: Got AuthStateWaitPhoneNumber");
         return handle_wait_phone_number();
     }
     case td::td_api::authorizationStateWaitCode::ID:
     {
         auto authState = td::td_api::move_object_as<td::td_api::authorizationStateWaitCode>(updateAuthState->authorization_state_);
-        _logger->debug("Got AuthStateWaitCode; Is registered? {}", authState->is_registered_);
+        _logger->debug("AuthHandler: Got AuthStateWaitCode; Is registered? {}", authState->is_registered_);
 
         cout << "ToS: " << endl
              << &authState->terms_of_service_->text_->text_ << endl;
@@ -54,6 +54,7 @@ td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_author
     }
     default:
     {
+        _logger->error("AuthHandler: Got an unexpected AuthState, ID: {}", updateAuthState->authorization_state_->get_id());
         assert(false);
     }
     }

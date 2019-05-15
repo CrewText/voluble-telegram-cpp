@@ -3,6 +3,7 @@ using namespace std;
 
 void handle_request()
 {
+    DatabaseManager *db_manager = new DatabaseManager("C:/Users/calmc/Desktop/voluble-telegram.db");
     TelegramClient *tc = new TelegramClient();
     cout << "Created TC" << endl;
     try

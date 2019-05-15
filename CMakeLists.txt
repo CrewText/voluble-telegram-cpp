@@ -27,8 +27,13 @@ server/telegram_client/telegram_client.cpp
 server/telegram_client/handlers/authorization_handler.cpp
 server/telegram_client/handlers/option_handler.cpp
 server/telegram_client/handlers/connectionstate_handler.cpp
+server/database_manager/database_manager.cpp
 )
 
+find_package(sqlite3 CONFIG REQUIRED)
+target_link_libraries(telegram PRIVATE sqlite3)
+find_package(SQLiteCpp CONFIG REQUIRED)
+target_link_libraries(telegram PRIVATE SQLiteCpp)
 find_package(cpprestsdk CONFIG REQUIRED)
 target_link_libraries(telegram PRIVATE cpprestsdk::cpprest cpprestsdk::cpprestsdk_zlib_internal cpprestsdk::cpprestsdk_boost_internal cpprestsdk::cpprestsdk_openssl_internal)
 find_package(OpenSSL REQUIRED)

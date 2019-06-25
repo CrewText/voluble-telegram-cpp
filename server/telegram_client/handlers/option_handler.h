@@ -4,7 +4,7 @@
 #include "td/telegram/Client.h"
 #include <iostream>
 #include <assert.h>
-#include "spdlog/spdlog.h"
+#include "../logger.h"
 
 class OptionHandler
 {

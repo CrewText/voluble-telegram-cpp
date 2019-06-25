@@ -1,13 +1,21 @@
 #include "authorization_handler.h"
 
 using namespace std;
-AuthorizationHandler::AuthorizationHandler(shared_ptr<td::Client> client)
+AuthorizationHandler::AuthorizationHandler(shared_ptr<td::Client> client, unsigned int client_id)
 {
     _client = client;
-    _logger = spdlog::get("console");
+    _logger = create_logger("AuthHandler");
     if (_logger == nullptr)
     {
         cout << "AuthHandler: No logger found!" << endl;
+    }
+    if (client_id)
+    {
+        _client_id = client_id;
+    }
+    else
+    {
+        client_id = rand();
     }
 }
 
@@ -23,28 +31,37 @@ td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_author
     case td::td_api::authorizationStateWaitTdlibParameters::ID:
     {
         auto authState = td::td_api::move_object_as<td::td_api::authorizationStateWaitTdlibParameters>(updateAuthState->authorization_state_);
-        _logger->debug("AuthHandler: Got AuthStateWaitTdLibParams");
+        _logger->debug("Got AuthStateWaitTdLibParams");
         return handle_tdlib_parameters();
     }
     case td::td_api::authorizationStateWaitEncryptionKey::ID:
     {
         auto authState = td::td_api::move_object_as<td::td_api::authorizationStateWaitEncryptionKey>(updateAuthState->authorization_state_);
-        _logger->debug("AuthHandler: Got AuthStateWaitEncrKey");
+        _logger->debug("Got AuthStateWaitEncrKey");
         return handle_wait_encryption_key();
     }
     case td::td_api::authorizationStateWaitPhoneNumber::ID:
     {
         auto authState = td::td_api::move_object_as<td::td_api::authorizationStateWaitPhoneNumber>(updateAuthState->authorization_state_);
-        _logger->debug("AuthHandler: Got AuthStateWaitPhoneNumber");
+        _logger->debug("Got AuthStateWaitPhoneNumber");
         return handle_wait_phone_number();
     }
     case td::td_api::authorizationStateWaitCode::ID:
     {
         auto authState = td::td_api::move_object_as<td::td_api::authorizationStateWaitCode>(updateAuthState->authorization_state_);
-        _logger->debug("AuthHandler: Got AuthStateWaitCode; Is registered? {}", authState->is_registered_);
+        _logger->debug("Got AuthStateWaitCode; Is registered? {}", authState->is_registered_);
+        td::td_api::object_ptr<td::td_api::authenticationCodeInfo> code_info = move(authState->code_info_);
+        _logger->debug("Sent auth code for: {}", code_info->phone_number_);
 
-        cout << "ToS: " << endl
-             << &authState->terms_of_service_->text_->text_ << endl;
+        if (authState->terms_of_service_ != nullptr)
+        {
+            td::td_api::object_ptr<td::td_api::termsOfService> tos = move(authState->terms_of_service_);
+
+            auto tos_text = move(tos->text_->text_);
+
+            _logger->info("Got ToS: {}", tos_text);
+        }
+
         return handle_wait_code();
     }
     case td::td_api::authorizationStateReady::ID:
@@ -54,7 +71,7 @@ td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_author
     }
     default:
     {
-        _logger->error("AuthHandler: Got an unexpected AuthState, ID: {}", updateAuthState->authorization_state_->get_id());
+        _logger->error("Got an unexpected AuthState, ID: {}", updateAuthState->authorization_state_->get_id());
         assert(false);
     }
     }
@@ -62,8 +79,21 @@ td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_author
 
 td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_tdlib_parameters()
 {
+    if (getenv("TELEGRAM_API_HASH") == NULL)
+    {
+        _logger->critical("TELEGRAM_API_HASH env var has not been set! Exiting...");
+        exit(EXIT_FAILURE);
+    }
+    if (getenv("TELEGRAM_API_ID") == NULL)
+    {
+        _logger->critical("TELEGRAM_API_ID env var has not been set! Exiting...");
+        exit(EXIT_FAILURE);
+    }
+
     ostringstream version;
-    version << VERSION_MAJOR << "." << VERSION_MINOR;
+    version << VERSION_MAJOR << "." << VERSION_MINOR << "." << VERSION_PATCH;
+    stringstream id;
+    id << _client_id;
     // cout << "handling tdlib params" << endl;
     auto parameters = td::td_api::make_object<td::td_api::tdlibParameters>();
     // cout << "made params object" << endl;
@@ -72,10 +102,10 @@ td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_tdlib_
     parameters->api_hash_ = getenv("TELEGRAM_API_HASH");
     parameters->api_id_ = atoi(getenv("TELEGRAM_API_ID"));
     parameters->application_version_ = version.str();
-    parameters->database_directory_ = "";
+    parameters->database_directory_ = id.str();
     parameters->device_model_ = "Asus Zenbook";
     parameters->enable_storage_optimizer_ = false;
-    parameters->files_directory_ = "";
+    parameters->files_directory_ = id.str();
     parameters->system_version_ = "Win 10";
     parameters->use_chat_info_database_ = true;
     parameters->use_file_database_ = true;

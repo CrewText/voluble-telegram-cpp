@@ -2,8 +2,8 @@
 #define CONNECTIONSTATE_HANDLER_H
 
 #include "td/telegram/Client.h"
-#include "spdlog/spdlog.h"
 #include <iostream>
+#include "../logger.h"
 #include <assert.h>
 
 class ConnectionStateHandler
@@ -11,7 +11,7 @@ class ConnectionStateHandler
 public:
     ConnectionStateHandler(std::shared_ptr<td::Client> client);
     virtual ~ConnectionStateHandler();
-    void handle_connection_state(td::td_api::object_ptr<td::td_api::updateConnectionState> &updateConnectionState);
+    td::td_api::object_ptr<td::td_api::Function> handle_connection_state(td::td_api::object_ptr<td::td_api::updateConnectionState> &updateConnectionState);
 
 private:
     std::shared_ptr<td::Client> _client;

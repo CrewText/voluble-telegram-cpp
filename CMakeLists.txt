@@ -1,9 +1,12 @@
 cmake_minimum_required(VERSION 3.7)
 project (telegram)
 
-set (CMAKE_TOOLCHAIN_FILE "C:/Users/calmc/vcpkg/scripts/buildsystems/vcpkg.cmake")
-set (cpprestsdk_DIR "C:/Users/calmc/vcpkg/installed/x64-windows/share/cpprestsdk")
-set (SQLITECPP_ENABLE_ASSERT_HANDLER true)
+set (CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+
+
+#set (CMAKE_TOOLCHAIN_FILE "C:/Users/calmc/vcpkg/scripts/buildsystems/vcpkg.cmake")
 
 set (VolubleTelegramClient_VERSION_MAJOR 0)
 set (VolubleTelegramClient_VERSION_MINOR 1)
@@ -19,11 +22,11 @@ configure_file (
   # add the binary tree to the search path for include files
 # so that we will find TutorialConfig.h
 include_directories("${PROJECT_BINARY_DIR}"
-${CMAKE_CURRENT_LIST_DIR}/thirdparty/SQLiteCpp/include
+third_party/sqlite_orm/include
+third_party/spdlog/include
 )
 
 add_subdirectory(td-1.4.0)
-add_subdirectory(thirdparty/SQLiteCpp)
 
 add_executable(telegram telegram.cpp
 server/server.cpp
@@ -31,25 +34,29 @@ server/telegram_client/telegram_client.cpp
 server/telegram_client/handlers/authorization_handler.cpp
 server/telegram_client/handlers/option_handler.cpp
 server/telegram_client/handlers/connectionstate_handler.cpp
+#server/telegram_client/UserManager.cpp
 server/database_manager/database_manager.cpp
+server/database_manager/User.cpp
+logger.cpp
+
 )
 
-find_package(cpprestsdk CONFIG REQUIRED)
+#find_package(cpprestsdk CONFIG REQUIRED)
 find_package(OpenSSL REQUIRED)
-find_package(spdlog CONFIG REQUIRED)
+#find_package(spdlog CONFIG REQUIRED)
 find_package(ZLIB REQUIRED)
+#find_library(sqlite3 REQUIRED)
+find_package(sqlite3 CONFIG REQUIRED)
 
 target_link_libraries(telegram PRIVATE
-SQLiteCpp
-sqlite3
-cpprestsdk::cpprest
-cpprestsdk::cpprestsdk_zlib_internal
-cpprestsdk::cpprestsdk_boost_internal
-cpprestsdk::cpprestsdk_openssl_internal
+#cpprestsdk::cpprest
+#cpprestsdk::cpprestsdk_zlib_internal
+#cpprestsdk::cpprestsdk_boost_internal
+#cpprestsdk::cpprestsdk_openssl_internal
 OpenSSL::SSL
 OpenSSL::Crypto
 ZLIB::ZLIB
-spdlog::spdlog
-cpprestsdk::cpprest
+#spdlog::spdlog
 Td::TdStatic
 )
+#target_link_libraries(telegram LINK_PUBLIC sqlite3)

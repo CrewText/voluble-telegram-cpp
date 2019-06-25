@@ -2,6 +2,9 @@
 	path = vcpkg
 	url = https://github.com/Microsoft/vcpkg
 	branch = master
-[submodule "thirdparty/SQLiteCpp"]
-	path = thirdparty/SQLiteCpp
-	url = https://github.com/SRombauts/SQLiteCpp
+[submodule "third_party/sqlite_orm"]
+	path = third_party/sqlite_orm
+	url = https://github.com/fnc12/sqlite_orm/
+[submodule "third_party/spdlog"]
+	path = third_party/spdlog
+	url = https://github.com/gabime/spdlog

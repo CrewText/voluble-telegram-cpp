@@ -71,68 +71,63 @@ void TC::do_receive_loop()
         {
             _logger->debug("Handling unsolicited update");
             // This is an unsolicited update; process it now
-            _logger->trace("Update pointer as nullptr pre-thread: {}", response.object == nullptr);
-            auto a = async(launch::async, [this, &response] {
-                _logger->trace("Update pointer as nullptr in-thread: {}", response.object == nullptr);
-                this->handle_td_update(move(response.object));
-            });
+            shared_ptr<TdObjectPtr> update_ptr = make_shared<TdObjectPtr>(move(response.object));
+            thread t = thread(&TC::handle_td_update, this, update_ptr);
+            t.detach();
 
-            _logger->trace("Created async to handle update");
+            _logger->trace("Created thread to handle update");
         }
         else
         {
             // This is a response to an existing query, hand it over
 
             RequestPromise_t request = inflight_requests.at(response.id);
-
-            request->set_value(move(response.object));
-            // inflight_requests.erase(response.id);
+            request->set_value(make_shared<TdObjectPtr>(move(response.object)));
+            inflight_requests.erase(response.id);
         }
     }
 }
 
-shared_ptr<promise<td::td_api::object_ptr<td::td_api::Object>>> TC::send_query(td::td_api::object_ptr<td::td_api::Function> &fn)
+//using RequestPromise_t = shared_ptr<promise<shared_ptr<TdObjectPtr>>>;
+RequestPromise_t TC::send_query(td::td_api::object_ptr<td::td_api::Function> &fn)
 {
     uint64_t query_id = rand();
     this->_logger->debug("Sending query #{}", query_id);
 
-    promise<td::td_api::object_ptr<td::td_api::Object>> prom;
-    shared_ptr<promise<td::td_api::object_ptr<td::td_api::Object>>> prom_ptr = make_shared<promise<td::td_api::object_ptr<td::td_api::Object>>>(move(prom));
-    inflight_requests.emplace(query_id, prom_ptr);
+    promise<shared_ptr<TdObjectPtr>> prom;
+    RequestPromise_t shared_td_obj_prom = make_shared<promise<shared_ptr<TdObjectPtr>>>(move(prom));
 
+    inflight_requests.emplace(query_id, shared_td_obj_prom);
     _client->send({query_id, move(fn)});
+
     this->_logger->debug("Query #{} sent", query_id);
-    return prom_ptr;
+    return shared_td_obj_prom;
 }
 
-void TC::handle_td_update(td::td_api::object_ptr<td::td_api::Object> update_obj)
+void TC::handle_td_update(shared_ptr<TdObjectPtr> update_obj)
 {
-    switch (update_obj->get_id())
+
+    _logger->trace("Handling update with ID {}", (*update_obj)->get_id());
+    switch ((*update_obj)->get_id())
     {
     case td::td_api::error::ID:
     {
-        auto err = td::td_api::move_object_as<td::td_api::error>(update_obj);
+        auto err = td::td_api::move_object_as<td::td_api::error>((*update_obj));
         _logger->error("Received an error: {}", err->message_);
         break;
     }
     case td::td_api::updateOption::ID:
     {
         _logger->debug("Received an OptionValue, handing over to OptionValue handler");
-        td::td_api::object_ptr<td::td_api::updateOption> updateOption = td::td_api::move_object_as<td::td_api::updateOption>(update_obj);
-        _logger->trace("pre-thread updateOption == nullptr?: {}", updateOption == nullptr);
+        td::td_api::object_ptr<td::td_api::updateOption> updateOption = td::td_api::move_object_as<td::td_api::updateOption>((*update_obj));
         _logger->trace("Converted TD object to updateOption, passing to OptionHandler");
         auto a = async(launch::async, [this, &updateOption] {
             _logger->trace("Opened new async to handle option");
-            _logger->trace("updateOption == nullptr?: {}", updateOption == nullptr);
             optionHandler->handle_option(updateOption);
 
             _logger->trace("Option handled, adding option to list");
             options.push_back(move(updateOption->value_));
         });
-        //a.
-
-        //optionHandler->handle_option(state);
-        // _logger->trace("Adding option to list");
 
         break;
     }
@@ -140,14 +135,14 @@ void TC::handle_td_update(td::td_api::object_ptr<td::td_api::Object> update_obj)
     case td::td_api::updateAuthorizationState::ID:
     {
         _logger->debug("Received an AuthState, handing over to AuthState handler");
-        auto authState = td::td_api::move_object_as<td::td_api::updateAuthorizationState>(update_obj);
+        auto authState = td::td_api::move_object_as<td::td_api::updateAuthorizationState>((*update_obj));
 
         auto a = async(launch::async, [this, &authState] {
             td::td_api::object_ptr<td::td_api::Function> fn = authHandler->handle_authorization_state(authState);
             if (fn != nullptr)
             {
-                shared_ptr<promise<td::td_api::object_ptr<td::td_api::Object>>> prom = send_query(fn);
-                // prom->get_future().wait();
+                auto prom = send_query(fn);
+                prom->get_future().wait();
                 // error_check(prom->get_future().get());
             }
         });
@@ -158,27 +153,27 @@ void TC::handle_td_update(td::td_api::object_ptr<td::td_api::Object> update_obj)
     case td::td_api::updateConnectionState::ID:
     {
         _logger->debug("Received an updateConnectionState, handing over to ConnectionStateHandler");
-        auto connectionState = td::td_api::move_object_as<td::td_api::updateConnectionState>(update_obj);
+        auto connectionState = td::td_api::move_object_as<td::td_api::updateConnectionState>((*update_obj));
         td::td_api::object_ptr<td::td_api::Function> fn = connectionStateHandler->handle_connection_state(connectionState);
         if (fn != nullptr)
         {
             auto prom_fn = send_query(fn);
-            _logger->trace("Sent getContacts, waiting for response");
 
-            packaged_task<td::td_api::object_ptr<td::td_api::Object>()> task([=] {
-                prom_fn->get_future().wait();
-                return prom_fn->get_future().get();
-            });
-            task.make_ready_at_thread_exit();
-            task();
+            auto shared_fut = prom_fn->get_future().share();
+            _logger->trace("Created shared future");
+            shared_fut.wait();
+
+            shared_ptr<TdObjectPtr> td_obj_shared = shared_fut.get();
+            TdObjectPtr obj = move(*td_obj_shared);
 
             _logger->trace("Got getContacts response");
 
-            auto obj = prom_fn->get_future().get();
             switch (obj->get_id())
             {
             // Sent by ConnectionStateReady - get contacts when connected
             case td::td_api::users::ID:
+            {
+                _logger->trace("Got users object");
                 td::td_api::object_ptr<td::td_api::users> users = td::td_api::move_object_as<td::td_api::users>(obj);
                 _logger->info("Found {} users; adding to Contacts DB", users->total_count_);
 
@@ -188,11 +183,12 @@ void TC::handle_td_update(td::td_api::object_ptr<td::td_api::Object> update_obj)
 
                     td::td_api::object_ptr<td::td_api::Function> fn = td::td_api::make_object<td::td_api::getUser>(users->user_ids_.at(i));
 
-                    shared_ptr<promise<td::td_api::object_ptr<td::td_api::Object>>> prom_getuser = send_query(fn);
-                    prom_getuser->get_future().wait();
+                    auto prom_getuser = send_query(fn);
+                    auto shared_fut_getuser = prom_getuser->get_future().share();
+                    shared_fut_getuser.wait();
 
-                    td::td_api::object_ptr<td::td_api::Object> user_tdobj = prom_getuser->get_future().get();
-                    td::td_api::object_ptr<td::td_api::user> user_tduser = td::td_api::move_object_as<td::td_api::user>(user_tdobj);
+                    shared_ptr<TdObjectPtr> user_tdobj = shared_fut_getuser.get();
+                    td::td_api::object_ptr<td::td_api::user> user_tduser = td::td_api::move_object_as<td::td_api::user>(*user_tdobj);
 
                     u.first_name = make_shared<string>(user_tduser->first_name_);
                     u.last_name = make_shared<string>(user_tduser->last_name_);
@@ -203,8 +199,11 @@ void TC::handle_td_update(td::td_api::object_ptr<td::td_api::Object> update_obj)
                     // User contact = userManager->getUserByTdId(users->user_ids_.at(i));
                     _logger->debug("Got user {}: {} {}", u.id, u.first_name ? *u.first_name : "", u.last_name ? *u.last_name : "");
                 }
+                break;
+            }
 
-                obj, users = nullptr;
+            default:
+                _logger->trace("Got unexpected response to CSReady: id {}", obj->get_id());
             }
         }
         break;
@@ -225,7 +224,7 @@ void TC::handle_td_update(td::td_api::object_ptr<td::td_api::Object> update_obj)
     case td::td_api::updateTermsOfService::ID:
     {
         _logger->warn("Received an updateTermsOfService, this should be implemented in the future");
-        auto updateToS = td::td_api::move_object_as<td::td_api::updateTermsOfService>(update_obj);
+        auto updateToS = td::td_api::move_object_as<td::td_api::updateTermsOfService>((*update_obj));
         cout
             << "Min user age: " << updateToS->terms_of_service_->min_user_age_ << endl;
         break;
@@ -234,7 +233,7 @@ void TC::handle_td_update(td::td_api::object_ptr<td::td_api::Object> update_obj)
     case td::td_api::updateNewMessage::ID:
     {
         _logger->warn("Received an updateNewMessage, implement me!");
-        auto updateNewMessage = td::td_api::move_object_as<td::td_api::updateNewMessage>(update_obj);
+        auto updateNewMessage = td::td_api::move_object_as<td::td_api::updateNewMessage>((*update_obj));
         //TODO: BUILD HANDLER FOR UPDATENEWMESSAGE
         break;
     }
@@ -242,7 +241,7 @@ void TC::handle_td_update(td::td_api::object_ptr<td::td_api::Object> update_obj)
     case td::td_api::updateNewChat::ID:
     {
         _logger->warn("Received an updateNewChat, implement me!");
-        auto updateNewChat = td::td_api::move_object_as<td::td_api::updateNewChat>(update_obj);
+        auto updateNewChat = td::td_api::move_object_as<td::td_api::updateNewChat>((*update_obj));
         //TODO: BUILD HANDLER FOR UPDATENEWCHAT
         break;
     }
@@ -250,7 +249,7 @@ void TC::handle_td_update(td::td_api::object_ptr<td::td_api::Object> update_obj)
     case td::td_api::updateUser::ID:
     {
         _logger->warn("Received an updateUser, implementation still WIP");
-        auto updateUser = td::td_api::move_object_as<td::td_api::updateUser>(update_obj);
+        auto updateUser = td::td_api::move_object_as<td::td_api::updateUser>((*update_obj));
         auto user = move(updateUser->user_);
         stringstream user_phone_no;
         if (user->phone_number_.find("+") == string::npos)
@@ -280,15 +279,16 @@ void TC::handle_td_update(td::td_api::object_ptr<td::td_api::Object> update_obj)
 
     default:
     {
-        auto update = td::move_tl_object_as<td::td_api::Update>(update_obj);
+        auto update = td::move_tl_object_as<td::td_api::Update>((*update_obj));
         _logger->info("Received unknown update. ID: {}", update->get_id());
         break;
     }
     }
 }
 
-bool TC::error_check(td::td_api::object_ptr<td::td_api::Object> obj)
+bool TC::error_check(shared_ptr<TdObjectPtr> obj_ptr)
 {
+    TdObjectPtr obj = move(*obj_ptr);
     if (obj->get_id() == td::td_api::error::ID)
     {
         try

@@ -10,7 +10,7 @@ linux_build_task:
     - cd sqlite_orm
     - mkdir compile
     - cd compile
-    - cmake ..
+    - cmake -DSqliteOrm_BuildTests=OFF ..
     - cmake --build .
     - make install
 

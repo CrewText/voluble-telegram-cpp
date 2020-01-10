@@ -1,0 +1,31 @@
+linux_build_task:
+  apt_script:
+    - apt-get update
+    - apt-get install cmake zlib1g-dev libssl1.0-dev libsqlite3-dev libsqlite3-0 build-essential
+
+  sqlite_orm_script:
+    - git clone https://github.com/fnc12/sqlite_orm.git sqlite_orm
+    - cd sqlite_orm
+    - mkdir compile
+    - cd compile
+    - cmake ..
+    - cmake --build .
+    - make install
+
+  spdlog_script:
+    - git clone https://github.com/gabime/spdlog.git
+    - cd spdlog && mkdir build && cd build
+    - cmake .. && make -j
+    - make install
+
+  tdlib_script:
+    - git clone https://github.com/tdlib/td
+    - cd td && mkdir build && cd build
+    - cmake -DCMAKE_BUILD_TYPE=Release ..
+    - cmake --build .
+    - make install
+
+  build_script:
+    - mkdir __build && cd __build
+    - cmake ..
+    - cmake --build .

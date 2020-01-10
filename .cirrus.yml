@@ -1,4 +1,6 @@
 linux_build_task:
+  container:
+    image: gcc:latest
   apt_script:
     - apt-get update
     - apt-get install cmake zlib1g-dev libssl1.0-dev libsqlite3-dev libsqlite3-0 build-essential

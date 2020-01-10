@@ -50,13 +50,15 @@ td::td_api::object_ptr<td::td_api::Function> ConnectionStateHandler::handle_conn
     {
         _logger->info("Connection state: Ready");
         // cout << "Ready" << endl;
-        _logger->debug("Getting contacts");
-        return td::td_api::make_object<td::td_api::getContacts>();
-        // return nullptr;
+        // _logger->debug("Getting contacts");
+        // return td::td_api::make_object<td::td_api::searchContacts>("", 2147483647);
+        // return td::td_api::make_object<td::td_api::getChats>(2 ^ 63 - 1, 0, 10000);
+        // return td::td_api::make_object<td::td_api::getContacts>();
+        return nullptr;
     }
     default:
     {
-        _logger->warn("Unknown update ID: {}", updateConnectionState->get_id());
+        _logger->warn("Unknown update ID in updateConnectionState: {}", updateConnectionState->get_id());
         // cout << "ConnectionStateHandler: unknown update ID: " << updateConnectionState->get_id() << endl;
         assert(false);
     }

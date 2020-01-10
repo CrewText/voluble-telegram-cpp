@@ -3,8 +3,10 @@
 
 using namespace std;
 
+const string USER_TABLE_NAME = "contacts";
+
 DatabaseManager::DatabaseManager(string db_location) : db{make_storage(db_location,
-                                                                       make_table("users",
+                                                                       make_table(USER_TABLE_NAME,
                                                                                   make_column("id", &User::id, autoincrement(), primary_key()),
                                                                                   make_column("phone_number", &User::phone_number),
                                                                                   make_column("telegram_id", &User::telegram_id),
@@ -34,23 +36,27 @@ bool DatabaseManager::verify_database()
     _logger->debug("Attempting to verify database at {}", _db_location);
     try
     {
-        _logger->debug("Checking for existence of users table");
-        if (!db.table_exists("users"))
+        _logger->debug("Checking for existence of {} table", USER_TABLE_NAME);
+        if (!db.table_exists(USER_TABLE_NAME))
         {
             throw UsersTableNotFound();
         }
         else
         {
-            _logger->debug("Users table exists");
+            _logger->debug("{} table exists", USER_TABLE_NAME);
         }
     }
     catch (system_error e)
     {
-        _logger->error("Failed to check if user table exists: {}", e.what());
+        _logger->error("Failed to check if {} table exists: {}", USER_TABLE_NAME, e.what());
+    }
+    catch (UsersTableNotFound e)
+    {
+        throw e;
     }
     catch (exception &e)
     {
-        _logger->error("Got unknown error when verifying user table: {}", e.what());
+        _logger->error("Got unknown error when verifying {} table: {}", USER_TABLE_NAME, e.what());
         return false;
     }
 
@@ -65,8 +71,6 @@ bool DatabaseManager::verify_database()
     }
     catch (exception &e)
     {
-        // cout << "Got unknown error when running `PRAGMA integrity_check`: " << e.what() << endl;
-
         _logger->error("Got unknown error when running `vacuum()`: {}", e.what());
         return false;
     }
@@ -77,8 +81,6 @@ bool DatabaseManager::verify_database()
 vector<User> DatabaseManager::fetch_user_list()
 {
     return db.get_all<User>();
-    // vector<User> v = {};
-    // return v;
 }
 
 shared_ptr<User> DatabaseManager::get_user_by_phone_no(string phone_no)
@@ -86,23 +88,12 @@ shared_ptr<User> DatabaseManager::get_user_by_phone_no(string phone_no)
 
     try
     {
-        // User user{db.get<User>(sqlite_orm::where(sqlite_orm::c(&User::phone_number) == phone_no))};
-        // return user;
-        // shared_ptr<User> u =
-        // db.get_no_throw<User>(sqlite_orm::where(is_equal(sqlite_orm::c(&User::phone_number), phone_no)));
-        // make_shared<User>(db.get_all<User>(where(c(&User::phone_number) == phone_no)).at(0));
-        vector<User> users_returned = db.get_all<User>(where(c(&User::phone_number) == phone_no));
-        if (users_returned.size())
+        shared_ptr<User> u =
+            make_shared<User>(db.get_all<User>(where(c(&User::phone_number) == phone_no)).at(0));
+        if (u == nullptr)
         {
-            return make_shared<User>(users_returned.at(0));
+            return u;
         }
-        else
-        {
-            return nullptr;
-        }
-        // db.get_pointer<User>
-        // User uu = *u;
-        // return u;
     }
     catch (system_error e)
     {
@@ -116,7 +107,6 @@ User DatabaseManager::add_user(std::string phone_number,
                                std::string last_name,
                                std::string username)
 {
-    // User u = User{0, phone_number, make_unique<uint32_t>(telegram_id), make_unique<string>(first_name), make_unique<string>(last_name), make_unique<string>(username)};
     User u = User();
     u.phone_number = phone_number;
     u.telegram_id = make_shared<int>(telegram_id);
@@ -173,17 +163,11 @@ void DatabaseManager::update_user_details(unsigned int user_id,
                                           std::string phone_number)
 {
     User u;
-    _logger->trace("user id");
     u.id = user_id;
-    _logger->trace("phone");
     u.phone_number = phone_number;
-    _logger->trace("tl id");
     u.telegram_id = make_shared<int>(telegram_id);
-    _logger->trace("fname");
     u.first_name = make_shared<string>(first_name);
-    _logger->trace("name");
     u.last_name = make_shared<string>(last_name);
-    _logger->trace("user id");
     u.username = make_shared<string>(username);
 
     try

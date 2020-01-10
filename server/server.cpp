@@ -29,7 +29,7 @@ Server::Server()
     {
         _logger->warn(e.what());
     }
-    catch (UsersTableNotFound)
+    catch (const UsersTableNotFound &e)
     {
         _logger->info("Users table not found, creating...");
         db_manager->init_new_user_database();

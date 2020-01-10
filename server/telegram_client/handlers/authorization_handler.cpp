@@ -24,7 +24,7 @@ AuthorizationHandler::~AuthorizationHandler()
     _client = nullptr;
 }
 
-td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_authorization_state(td::td_api::object_ptr<td::td_api::updateAuthorizationState> &updateAuthState)
+TdObjPtr<td::td_api::Function> AuthorizationHandler::handle_authorization_state(td::td_api::object_ptr<td::td_api::updateAuthorizationState> &updateAuthState)
 {
     switch (updateAuthState->authorization_state_->get_id())
     {
@@ -50,12 +50,12 @@ td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_author
     {
         auto authState = td::td_api::move_object_as<td::td_api::authorizationStateWaitCode>(updateAuthState->authorization_state_);
         _logger->debug("Got AuthStateWaitCode; Is registered? {}", authState->is_registered_);
-        td::td_api::object_ptr<td::td_api::authenticationCodeInfo> code_info = move(authState->code_info_);
+        TdObjPtr<td::td_api::authenticationCodeInfo> code_info = move(authState->code_info_);
         _logger->debug("Sent auth code for: {}", code_info->phone_number_);
 
         if (authState->terms_of_service_ != nullptr)
         {
-            td::td_api::object_ptr<td::td_api::termsOfService> tos = move(authState->terms_of_service_);
+            TdObjPtr<td::td_api::termsOfService> tos = move(authState->terms_of_service_);
 
             auto tos_text = move(tos->text_->text_);
 
@@ -67,7 +67,8 @@ td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_author
     case td::td_api::authorizationStateReady::ID:
     {
         _logger->debug("Got AuthStateReady");
-        return nullptr;
+        _logger->debug("Getting contacts");
+        return td::td_api::make_object<td::td_api::searchContacts>("", 2147483647);
     }
     default:
     {
@@ -77,7 +78,7 @@ td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_author
     }
 }
 
-td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_tdlib_parameters()
+TdObjPtr<td::td_api::Function> AuthorizationHandler::handle_tdlib_parameters()
 {
     if (getenv("TELEGRAM_API_HASH") == NULL)
     {
@@ -119,19 +120,19 @@ td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_tdlib_
     return td::td_api::make_object<td::td_api::setTdlibParameters>(move(parameters));
 }
 
-td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_wait_encryption_key()
+TdObjPtr<td::td_api::Function> AuthorizationHandler::handle_wait_encryption_key()
 {
     return td::td_api::make_object<td::td_api::setDatabaseEncryptionKey>("");
 }
 
-td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_wait_phone_number()
+TdObjPtr<td::td_api::Function> AuthorizationHandler::handle_wait_phone_number()
 {
-    return td::td_api::make_object<td::td_api::setAuthenticationPhoneNumber>("+447426437449", false, true);
+    return td::td_api::make_object<td::td_api::setAuthenticationPhoneNumber>("+353879409420", false, true);
 }
 
-td::td_api::object_ptr<td::td_api::Function> AuthorizationHandler::handle_wait_code()
+TdObjPtr<td::td_api::Function> AuthorizationHandler::handle_wait_code()
 {
     string code;
     getline(cin, code);
-    return td::td_api::make_object<td::td_api::checkAuthenticationCode>(code, "Cal", "McLean");
+    return td::td_api::make_object<td::td_api::checkAuthenticationCode>(code, "Cal", "McLeanVoluble");
 }

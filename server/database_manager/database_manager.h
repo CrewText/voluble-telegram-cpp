@@ -27,6 +27,7 @@ using DB = decltype(make_storage("",
                                             make_column("first_name", &User::first_name),
                                             make_column("last_name", &User::last_name),
                                             make_column("username", &User::username))));
+
 // auto initStorage(std::string db_path)
 // {
 //     return make_storage("",

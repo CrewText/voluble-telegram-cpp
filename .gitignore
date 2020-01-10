@@ -1,4 +1,4 @@
 /.vscode
-/build/
+/*build*/
 /td-1.4.0
 CMakeFiles/

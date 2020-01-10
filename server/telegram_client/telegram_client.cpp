@@ -2,10 +2,12 @@
 
 using namespace std;
 
+// Timeout while waiting for an update from Telegram
 const double TELEGRAM_WAIT_TIMEOUT = 10.0;
 
 TC::TC(unsigned int ID)
 {
+    // Set up logging
     stringstream logger_name;
     logger_name << "TC_" << ID;
     _logger = create_logger(logger_name.str());
@@ -26,6 +28,7 @@ TC::TC(unsigned int ID)
     }
     td::Log::set_verbosity_level(5);
     td::Log::set_fatal_error_callback(fatal_error_callback);
+
     _client = make_shared<td::Client>();
 
     stringstream db_location;
@@ -69,9 +72,12 @@ void TC::do_receive_loop()
         }
         if (response.id == 0)
         {
+            // This update is not a response to a request; Telegram is notifying us of something
             _logger->debug("Handling unsolicited update");
-            // This is an unsolicited update; process it now
+
+            // Make a pointer to the update, so we can share it across threads, because...
             shared_ptr<TdObjectPtr> update_ptr = make_shared<TdObjectPtr>(move(response.object));
+            // ...we're handling the update in a new thread, so as not to block the receiving loop.
             thread t = thread(&TC::handle_td_update, this, update_ptr);
             t.detach();
 
@@ -79,8 +85,8 @@ void TC::do_receive_loop()
         }
         else
         {
-            // This is a response to an existing query, hand it over
-
+            // This is a response to an existing query - find the request promise and fulfill it with
+            // the new update.
             RequestPromise_t request = inflight_requests.at(response.id);
             request->set_value(make_shared<TdObjectPtr>(move(response.object)));
             inflight_requests.erase(response.id);
@@ -88,12 +94,13 @@ void TC::do_receive_loop()
     }
 }
 
-//using RequestPromise_t = shared_ptr<promise<shared_ptr<TdObjectPtr>>>;
 RequestPromise_t TC::send_query(td::td_api::object_ptr<td::td_api::Function> &fn)
 {
     uint64_t query_id = rand();
     this->_logger->debug("Sending query #{}", query_id);
 
+    // Create a shared pointer to a shared promise, and add it to the inflight_requests list.
+    // When an update is returned, the promise will be fulfilled.
     promise<shared_ptr<TdObjectPtr>> prom;
     RequestPromise_t shared_td_obj_prom = make_shared<promise<shared_ptr<TdObjectPtr>>>(move(prom));
 
@@ -106,8 +113,9 @@ RequestPromise_t TC::send_query(td::td_api::object_ptr<td::td_api::Function> &fn
 
 void TC::handle_td_update(shared_ptr<TdObjectPtr> update_obj)
 {
-
+    // An unsolicited update has been received from Telegram, we need to decide what to do with it.
     _logger->trace("Handling update with ID {}", (*update_obj)->get_id());
+
     switch ((*update_obj)->get_id())
     {
     case td::td_api::error::ID:
@@ -143,6 +151,55 @@ void TC::handle_td_update(shared_ptr<TdObjectPtr> update_obj)
             {
                 auto prom = send_query(fn);
                 prom->get_future().wait();
+
+                shared_ptr<TdObjectPtr> td_obj_shared = prom->get_future().get();
+                TdObjectPtr obj = move(*td_obj_shared);
+
+                switch (obj->get_id())
+                {
+                case td::td_api::chats::ID:
+                {
+                    td::td_api::object_ptr<td::td_api::chats> chats = td::td_api::move_object_as<td::td_api::chats>(obj);
+                    _logger->info("Found {} chats", chats->chat_ids_.size());
+                    break;
+                }
+                // Sent by AuthStateReady - get contacts when connected
+                case td::td_api::users::ID:
+                {
+                    _logger->trace("Got users object");
+                    td::td_api::object_ptr<td::td_api::users> users = td::td_api::move_object_as<td::td_api::users>(obj);
+                    _logger->info("Found {} users; adding to Contacts DB", users->total_count_);
+
+                    for (unsigned int i = 0; i < users->total_count_; i++)
+                    {
+                        User u;
+
+                        td::td_api::object_ptr<td::td_api::Function> fn = td::td_api::make_object<td::td_api::getUser>(users->user_ids_.at(i));
+
+                        auto prom_getuser = send_query(fn);
+                        auto shared_fut_getuser = prom_getuser->get_future().share();
+                        shared_fut_getuser.wait();
+
+                        shared_ptr<TdObjectPtr> user_tdobj = shared_fut_getuser.get();
+                        td::td_api::object_ptr<td::td_api::user> user_tduser = td::td_api::move_object_as<td::td_api::user>(*user_tdobj);
+
+                        u.first_name = make_shared<string>(user_tduser->first_name_);
+                        u.last_name = make_shared<string>(user_tduser->last_name_);
+                        u.telegram_id = make_shared<int>(user_tduser->id_);
+                        u.phone_number = user_tduser->phone_number_;
+                        u.username = make_shared<string>(user_tduser->username_);
+
+                        dbManager->add_user(u);
+                        // User contact = userManager->getUserByTdId(users->user_ids_.at(i));
+                        _logger->debug("Got user {}: {} {}", u.id, u.first_name ? *u.first_name : "", u.last_name ? *u.last_name : "");
+                    }
+                    break;
+                }
+
+                default:
+                    _logger->trace("Got unexpected response to ASReady: id {}", obj->get_id());
+                }
+
                 // error_check(prom->get_future().get());
             }
         });
@@ -163,48 +220,53 @@ void TC::handle_td_update(shared_ptr<TdObjectPtr> update_obj)
             _logger->trace("Created shared future");
             shared_fut.wait();
 
-            shared_ptr<TdObjectPtr> td_obj_shared = shared_fut.get();
-            TdObjectPtr obj = move(*td_obj_shared);
+            // shared_ptr<TdObjectPtr> td_obj_shared = shared_fut.get();
+            // TdObjectPtr obj = move(*td_obj_shared);
 
-            _logger->trace("Got getContacts response");
+            // switch (obj->get_id())
+            // {
+            // case td::td_api::chats::ID:
+            // {
+            //     td::td_api::object_ptr<td::td_api::chats> chats = td::td_api::move_object_as<td::td_api::chats>(obj);
+            //     _logger->info("Found {} chats", chats->chat_ids_.size());
+            //     break;
+            // }
+            // // Sent by ConnectionStateReady - get contacts when connected
+            // case td::td_api::users::ID:
+            // {
+            //     _logger->trace("Got users object");
+            //     td::td_api::object_ptr<td::td_api::users> users = td::td_api::move_object_as<td::td_api::users>(obj);
+            //     _logger->info("Found {} users; adding to Contacts DB", users->total_count_);
 
-            switch (obj->get_id())
-            {
-            // Sent by ConnectionStateReady - get contacts when connected
-            case td::td_api::users::ID:
-            {
-                _logger->trace("Got users object");
-                td::td_api::object_ptr<td::td_api::users> users = td::td_api::move_object_as<td::td_api::users>(obj);
-                _logger->info("Found {} users; adding to Contacts DB", users->total_count_);
+            //     for (unsigned int i = 0; i < users->total_count_; i++)
+            //     {
+            //         User u;
 
-                for (unsigned int i = 0; i < users->total_count_; i++)
-                {
-                    User u;
+            //         td::td_api::object_ptr<td::td_api::Function> fn = td::td_api::make_object<td::td_api::getUser>(users->user_ids_.at(i));
 
-                    td::td_api::object_ptr<td::td_api::Function> fn = td::td_api::make_object<td::td_api::getUser>(users->user_ids_.at(i));
+            //         auto prom_getuser = send_query(fn);
+            //         auto shared_fut_getuser = prom_getuser->get_future().share();
+            //         shared_fut_getuser.wait();
 
-                    auto prom_getuser = send_query(fn);
-                    auto shared_fut_getuser = prom_getuser->get_future().share();
-                    shared_fut_getuser.wait();
+            //         shared_ptr<TdObjectPtr> user_tdobj = shared_fut_getuser.get();
+            //         td::td_api::object_ptr<td::td_api::user> user_tduser = td::td_api::move_object_as<td::td_api::user>(*user_tdobj);
 
-                    shared_ptr<TdObjectPtr> user_tdobj = shared_fut_getuser.get();
-                    td::td_api::object_ptr<td::td_api::user> user_tduser = td::td_api::move_object_as<td::td_api::user>(*user_tdobj);
+            //         u.first_name = make_shared<string>(user_tduser->first_name_);
+            //         u.last_name = make_shared<string>(user_tduser->last_name_);
+            //         u.telegram_id = make_shared<int>(user_tduser->id_);
+            //         u.phone_number = user_tduser->phone_number_;
+            //         u.username = make_shared<string>(user_tduser->username_);
 
-                    u.first_name = make_shared<string>(user_tduser->first_name_);
-                    u.last_name = make_shared<string>(user_tduser->last_name_);
-                    u.telegram_id = make_shared<int>(user_tduser->id_);
-                    u.phone_number = user_tduser->phone_number_;
-                    u.username = make_shared<string>(user_tduser->username_);
+            //         dbManager->add_user(u);
+            //         // User contact = userManager->getUserByTdId(users->user_ids_.at(i));
+            //         _logger->debug("Got user {}: {} {}", u.id, u.first_name ? *u.first_name : "", u.last_name ? *u.last_name : "");
+            //     }
+            //     break;
+            // }
 
-                    // User contact = userManager->getUserByTdId(users->user_ids_.at(i));
-                    _logger->debug("Got user {}: {} {}", u.id, u.first_name ? *u.first_name : "", u.last_name ? *u.last_name : "");
-                }
-                break;
-            }
-
-            default:
-                _logger->trace("Got unexpected response to CSReady: id {}", obj->get_id());
-            }
+            // default:
+            //     _logger->trace("Got unexpected response to CSReady: id {}", obj->get_id());
+            // }
         }
         break;
     }
@@ -251,29 +313,31 @@ void TC::handle_td_update(shared_ptr<TdObjectPtr> update_obj)
         _logger->warn("Received an updateUser, implementation still WIP");
         auto updateUser = td::td_api::move_object_as<td::td_api::updateUser>((*update_obj));
         auto user = move(updateUser->user_);
-        stringstream user_phone_no;
-        if (user->phone_number_.find("+") == string::npos)
-        {
-            user_phone_no << "+";
-        }
-        user_phone_no << user->phone_number_;
-        shared_ptr<User> user_in_db = dbManager->get_user_by_phone_no(user_phone_no.str());
-        if (user_in_db != nullptr)
-        {
-            _logger->info("Updating user {} details", user_in_db->id);
-            User u = *user_in_db;
-            u.id = user_in_db->id;
-            u.telegram_id = make_shared<int>(user->id_);
-            u.first_name = make_shared<string>(user->first_name_);
-            u.last_name = make_shared<string>(user->last_name_);
-            u.username = make_shared<string>(user->username_);
-            // dbManager->update_user_details(user_in_db->id, user->id_, user->first_name_, user->last_name_, user->username_);
-            dbManager->update_user_details(u);
-        }
-        else
-        {
-            _logger->warn("User with phone no. {} does not exist in DB; is this correct? User details:", user_phone_no.str());
-        }
+
+        //THIS IS TRYING TO FIND A USER IN THE CONTACT DB, THIS WON'T WORK
+        // stringstream user_phone_no;
+        // if (user->phone_number_.find("+") == string::npos)
+        // {
+        //     user_phone_no << "+";
+        // }
+        // user_phone_no << user->phone_number_;
+        // shared_ptr<User> user_in_db = dbManager->get_user_by_phone_no(user_phone_no.str());
+        // if (user_in_db != nullptr)
+        // {
+        //     _logger->info("Updating user {} details", user_in_db->id);
+        //     User u = *user_in_db;
+        //     u.id = user_in_db->id;
+        //     u.telegram_id = make_shared<int>(user->id_);
+        //     u.first_name = make_shared<string>(user->first_name_);
+        //     u.last_name = make_shared<string>(user->last_name_);
+        //     u.username = make_shared<string>(user->username_);
+        //     // dbManager->update_user_details(user_in_db->id, user->id_, user->first_name_, user->last_name_, user->username_);
+        //     dbManager->update_user_details(u);
+        // }
+        // else
+        // {
+        //     _logger->warn("User with phone no. {} does not exist in DB; is this correct? User details:", user_phone_no.str());
+        // }
         break;
     }
 

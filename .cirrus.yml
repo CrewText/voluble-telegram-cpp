@@ -1,6 +1,6 @@
 linux_build_task:
   container:
-    Dockerfile: .ci/Dockerfile
+    dockerfile: .ci/Dockerfile
   apt_script:
     - apt-get update
     - apt-get install cmake zlib1g-dev libssl-dev libsqlite3-dev libsqlite3-0 gperf build-essential clang -y

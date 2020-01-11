@@ -1,7 +1,7 @@
 cmake_minimum_required(VERSION 3.7)
-project (telegram)
+project (telegram CXX)
 
-set (CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 14)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
@@ -46,7 +46,13 @@ find_package(OpenSSL REQUIRED)
 #find_package(spdlog CONFIG REQUIRED)
 find_package(ZLIB REQUIRED)
 #find_library(sqlite3 REQUIRED)
-find_package(sqlite3 CONFIG REQUIRED)
+find_package(sqlite3 CONFIG)
+
+#FindSQLite3()
+#if(SQLite3_FOUND)
+#  include_directories(${SQLite3_INCLUDE_DIRS})
+#  target_link_libraries(SQLite3_LIBRARIES)
+#endif()
 
 target_link_libraries(telegram PRIVATE
 #cpprestsdk::cpprest
@@ -58,5 +64,6 @@ OpenSSL::Crypto
 ZLIB::ZLIB
 #spdlog::spdlog
 Td::TdStatic
+sqlite3
 )
 #target_link_libraries(telegram LINK_PUBLIC sqlite3)

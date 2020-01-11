@@ -1,6 +1,13 @@
 FROM gcc:latest
 RUN apt-get update
-RUN apt-get install cmake zlib1g-dev libssl-dev libsqlite3-dev libsqlite3-0 gperf build-essential clang git -y
+RUN apt-get install zlib1g-dev libssl-dev libsqlite3-dev libsqlite3-0 gperf build-essential clang git -y
+
+RUN wget https://github.com/Kitware/CMake/releases/download/v3.16.2/cmake-3.16.2.tar.gz
+RUN tar -xgf cmake-3.16.2.tar.gz
+WORKDIR cmake-3.16.2
+RUN ./bootstrap
+RUN make
+RUN make install
 
 RUN git clone https://github.com/fnc12/sqlite_orm.git sqlite_orm
 RUN mkdir -p sqlite_orm/__bld

@@ -48,11 +48,11 @@ find_package(ZLIB REQUIRED)
 #find_library(sqlite3 REQUIRED)
 find_package(sqlite3 CONFIG)
 
-#FindSQLite3()
-#if(SQLite3_FOUND)
-#  include_directories(${SQLite3_INCLUDE_DIRS})
-#  target_link_libraries(SQLite3_LIBRARIES)
-#endif()
+FindSQLite3()
+if(SQLite3_FOUND)
+  include_directories(${SQLite3_INCLUDE_DIRS})
+  target_link_libraries(SQLite3_LIBRARIES)
+endif()
 
 target_link_libraries(telegram PRIVATE
 #cpprestsdk::cpprest
